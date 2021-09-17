@@ -1,4 +1,4 @@
-# dnevnikru4python
+# dnevnik4python
 
 Dnevnik4python - это библиотека для Python позволяющая удобно работать с электронным дневником dnevnik.ru
 
@@ -26,11 +26,11 @@ print(d.get_diary(datetime.datetime.now()))
 ## Установка
 ### *Linux/macOS*
 ```
-pip3 install dnevnikru4py
+pip3 install dnevnik4python
 ```
 ### *Windows*
 ```
-pip install dnevnikru4py
+pip install dnevnik4python
 ```
 
 ## Планы на будущее
