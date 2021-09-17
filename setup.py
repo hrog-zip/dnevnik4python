@@ -4,11 +4,12 @@ with open('README.md', mode = 'r', encoding = 'utf-8') as r:
     long_description = r.read()
 
 setup(
-    name='dnevnikru4python',
+    name='dnevnik4python',
     version='0.0.1',
     packages=find_packages(),
     description='Wrapper for python that simplifies work with dnevnik.ru',
     long_description = long_description,
+    long_description_content_type='text/markdown',
     install_requires = ['beautifulsoup4==4.9.3',
                         'bs4==0.0.1',
                         'certifi==2021.5.30',

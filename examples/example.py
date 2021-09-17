@@ -1,4 +1,4 @@
-from dnevnikru4python import * 
+from dnevnik4python import * 
 import datetime
 
 login = "login"
