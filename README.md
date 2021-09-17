@@ -21,6 +21,17 @@ d = Diary(login, password)
 # получить дневник на сегодня
 print(d.get_diary(datetime.datetime.now()))
 ```
-## Планы на будующее
+
+## Установка
+### *Linux/macOS*
+```
+pip3 install dnevnikru4py
+```
+### *Windows*
+```
+pip install dnevnikru4py
+```
+
+## Планы на будущее
 - Сделать библиотеку более удобной в использовании
 
