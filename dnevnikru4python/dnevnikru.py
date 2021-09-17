@@ -87,7 +87,7 @@ class Diary(DiaryBase):
         # parse data about user
         self.school_id, self.group_id, self.person_id = self.parse_user_data()
     
-    def get_diary(self, date: datetime, span: int, utc_aware: bool = False):
+    def get_diary(self, date: datetime, span: int = 1, utc_aware: bool = False):
         # convert date to timestamp
         if not utc_aware:
             timestamp_date = int(datetime(year = date.year, month = date.month, day = date.day).replace(tzinfo = pytz.utc).timestamp())
