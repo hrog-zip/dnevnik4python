@@ -66,10 +66,11 @@ class DiaryBase:
         for script in soup.findAll("script"):
             if "window.__TALK__INITIAL__STATE__" not in script.next:
                 continue
-            # remove everything we dont need
+            # remove everything we dont need                                                                
             raw_initial_info = script.next
-            raw_initial_info = raw_initial_info.split("window.__TALK__INITIAL__STATE__")[0]
-            raw_initial_info = raw_initial_info.replace("window.__USER__START__PAGE__INITIAL__STATE__ = ", "")
+            raw_initial_info = raw_initial_info.split("window.__USER__START__PAGE__INITIAL__STATE__ = ")[1]
+            raw_initial_info = raw_initial_info.split("window.__TALK__STUB__INITIAL__STATE__ = ")[0]
+            raw_initial_info = raw_initial_info.split("window.__TALK__INITIAL__STATE__ = ")[0]
             raw_initial_info = raw_initial_info.strip()[:-1]
             json = json_loads(raw_initial_info)
             info = json["userSchedule"]["currentChild"]
