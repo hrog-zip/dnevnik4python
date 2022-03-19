@@ -107,7 +107,7 @@ class Diary(DiaryBase):
         # calculate time if user passes in negative span
         # by default dnevnikru supports only positive and zero span
         if span < 0:
-            date = date - timedelta(days = span)
+            date = date - timedelta(days = abs(span))
             span = abs(span)
 
         # convert date to timestamp
@@ -115,6 +115,7 @@ class Diary(DiaryBase):
             timestamp_date = int(datetime(year = date.year, month = date.month, day = date.day).replace(tzinfo = pytz.utc).timestamp())
         else:
             timestamp_date = int(datetime(year = date.year, month = date.month, day = date.day).timestamp())
+        logger.debug(f"Getting diary for date {timestamp_date} with span {span}")
 
         r = self._get(f"https://dnevnik.ru/api/userfeed/persons/"
                       f"{self.person_id}/schools/"
