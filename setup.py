@@ -5,7 +5,7 @@ with open("README.md", mode = "r", encoding = "utf-8") as r:
 
 setup(
     name = "dnevnik4python",
-    version = "0.0.2",
+    version = "0.0.3",
     url = "https://github.com/hrog-zip/dnevnik4python",
     packages = find_packages(),
     description = "Wrapper for python that simplifies work with dnevnik.ru",

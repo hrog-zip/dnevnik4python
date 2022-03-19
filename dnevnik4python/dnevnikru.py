@@ -17,6 +17,9 @@ class DiaryBase:
     userfeed_url = "https://dnevnik.ru/userfeed"
 
     def __init__(self):
+
+        self._initial_user_info = None
+
         self.session = Session()
         # "Referer" is needed
         self.session.headers = {"User-Agent": UserAgent().random,
@@ -72,11 +75,15 @@ class DiaryBase:
             raw_initial_info = raw_initial_info.split("window.__TALK__STUB__INITIAL__STATE__ = ")[0]
             raw_initial_info = raw_initial_info.split("window.__TALK__INITIAL__STATE__ = ")[0]
             raw_initial_info = raw_initial_info.strip()[:-1]
-            json = json_loads(raw_initial_info)
-            info = json["userSchedule"]["currentChild"]
+            self._initial_user_info = json_loads(raw_initial_info)
+            info = self._initial_user_info["userSchedule"]["currentChild"]
             return info["schoolId"], info["groupId"], info["personId"]
 
         raise DataParseError("Cannot find user info in userfeed page")
+
+    @property
+    def initial_user_info(self):
+        return self._initial_user_info
 
 
 class Diary(DiaryBase):
