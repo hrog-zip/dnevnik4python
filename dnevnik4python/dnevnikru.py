@@ -7,8 +7,11 @@ from json import dumps as json_dumps
 from datetime import datetime, timedelta, timezone
 import pytz
 import ast
+import logging
 
 from .exceptions import *
+
+logger = logging.getLogger(__name__)
 
 class DiaryBase:
     """docstring for Diary."""
@@ -77,6 +80,10 @@ class DiaryBase:
             raw_initial_info = raw_initial_info.strip()[:-1]
             self._initial_user_info = json_loads(raw_initial_info)
             info = self._initial_user_info["userSchedule"]["currentChild"]
+            
+            logger.debug("User info: " + str(info))
+            logger.debug("Current date according to dnevnik: " + self._initial_user_info["userSchedule"]["currentDate"])
+
             return info["schoolId"], info["groupId"], info["personId"]
 
         raise DataParseError("Cannot find user info in userfeed page")
