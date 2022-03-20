@@ -3,10 +3,8 @@ from requests import Session
 from fake_useragent import UserAgent
 from os import getenv
 from json import loads as json_loads
-from json import dumps as json_dumps
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import pytz
-import ast
 import logging
 
 from .exceptions import *
@@ -22,7 +20,7 @@ class DiaryBase:
 
     def __init__(self):
 
-        self._initial_user_info = None
+        self._initial_info = None
 
         self.session = Session()
         # "Referer" is needed
@@ -31,36 +29,42 @@ class DiaryBase:
 
     # simple wrappers for "get" and "post" methods from requests library
     def _get(self, url, **kwargs):
+        logger.debug(f"Sending GET request to {url}")
         r = self.session.get(url, **kwargs)
 
         if r.status_code != 200:
+            logger.error(f"Got {r.status_code} from {url}")
             if not self.servers_are_ok():
-                raise ServersAreDownException(
-                    "Dnevnik.ru servers are down, please retry later")
+                raise ServersAreDownException("Dnevnik.ru servers are down, please retry later")
             else:
-                raise NotOkCodeReturn(
-                    f"Get request to {url} resulted in {r.status_code} status code")
+                raise NotOkCodeReturn(f"Get request to {url} resulted in {r.status_code} status code")
+        logger.debug(f"Request to {url} sucsessful")
         return r
 
     def _post(self, url, data={}, **kwargs):
+        logger.debug(f"Sending POST request to {url}")
         r = self.session.post(url, data, **kwargs)
 
         if r.status_code != 200:
+            logger.error(f"Got {r.status_code} from {url}")
             if not self.servers_are_ok():
-                raise ServersAreDownException(
-                    "Dnevnik.ru servers are down, please retry later")
+                raise ServersAreDownException("Dnevnik.ru servers are down, please retry later")
             else:
-                raise NotOkCodeReturn(
-                    f"Post request to {url} resulted in {r.status_code} status code")
+                raise NotOkCodeReturn(f"Post request to {url} resulted in {r.status_code} status code")
+        logger.debug(f"Request to {url} sucsessful")
         return r
 
     def servers_are_ok(self):
+        logger.info("Checking https://dnevnik.ru/ status")
         r = self.session.get("https://dnevnik.ru/")
         if r.status_code != 200:
+            logger.warn(f"Got {r.status_code} status code from https://dnevnik.ru/")
             return False
+        logger.info(f"Got {r.status_code} status code from https://dnevnik.ru/")
         return True
 
     def auth(self, login, password):
+        logger.info(f"Authenticating on {self.login_url}")
         r = self._post(
             self.login_url,
             data={
@@ -68,42 +72,45 @@ class DiaryBase:
                 "password": password})
         # check if we accessed userfeed page
         if r.url != self.userfeed_url:
+            logger.error("Unable to authenicate. Most likely due wrong credentials")
             raise IncorrectLoginDataException("You entered wrong login data")
+        logger.info("Authenication sucsessful")
 
     def parse_user_data(self):
+        logger.debug("Parsing initial info")
         r = self._get(self.userfeed_url)
 
         if r.status_code != 200 or r.url != self.userfeed_url:
             raise DataParseError("Cant reach userfeed")
 
         soup = BeautifulSoup(r.text, "lxml")
+        try:
+            for script in soup.findAll("script"):
+                if "window.__TALK__INITIAL__STATE__" not in script.next:
+                    continue
+                logger.debug("Found nescessary html tag")
+                # remove everything we dont need
+                raw_initial_info = script.next
+                raw_initial_info = raw_initial_info.split("window.__USER__START__PAGE__INITIAL__STATE__ = ")[1]
+                raw_initial_info = raw_initial_info.split("window.__TALK__STUB__INITIAL__STATE__ = ")[0]
+                raw_initial_info = raw_initial_info.split("window.__TALK__INITIAL__STATE__ = ")[0]
+                raw_initial_info = raw_initial_info.strip()[:-1]
+                self._initial_info = json_loads(raw_initial_info)
+                info = self._initial_info["userSchedule"]["currentChild"]
 
-        for script in soup.findAll("script"):
-            if "window.__TALK__INITIAL__STATE__" not in script.next:
-                continue
-            # remove everything we dont need
-            raw_initial_info = script.next
-            raw_initial_info = raw_initial_info.split(
-                "window.__USER__START__PAGE__INITIAL__STATE__ = ")[1]
-            raw_initial_info = raw_initial_info.split(
-                "window.__TALK__STUB__INITIAL__STATE__ = ")[0]
-            raw_initial_info = raw_initial_info.split(
-                "window.__TALK__INITIAL__STATE__ = ")[0]
-            raw_initial_info = raw_initial_info.strip()[:-1]
-            self._initial_user_info = json_loads(raw_initial_info)
-            info = self._initial_user_info["userSchedule"]["currentChild"]
+                logger.debug("User info: " + str(info))
+                logger.debug("Current date according to dnevnik: " + self._initial_info["userSchedule"]["currentDate"])
 
-            logger.debug("User info: " + str(info))
-            logger.debug("Current date according to dnevnik: " +
-                         self._initial_user_info["userSchedule"]["currentDate"])
+                return info["schoolId"], info["groupId"], info["personId"]
 
-            return info["schoolId"], info["groupId"], info["personId"]
+        except Exception as e:
+            logger.error(f"During user info parsing this exception accured:\n{e}")
 
         raise DataParseError("Cannot find user info in userfeed page")
 
     @property
-    def initial_user_info(self):
-        return self._initial_user_info
+    def initial_info(self):
+        return self._initial_info
 
 
 class Diary(DiaryBase):
@@ -125,20 +132,11 @@ class Diary(DiaryBase):
 
         # convert date to timestamp
         if not utc_aware:
-            timestamp_date = int(
-                datetime(
-                    year=date.year,
-                    month=date.month,
-                    day=date.day).replace(
-                    tzinfo=pytz.utc).timestamp())
+            timestamp_date = int(datetime(year=date.year, month=date.month, day=date.day).replace(tzinfo=pytz.utc).timestamp())
         else:
-            timestamp_date = int(
-                datetime(
-                    year=date.year,
-                    month=date.month,
-                    day=date.day).timestamp())
-        logger.debug(
-            f"Getting diary for date {timestamp_date} with span {span}")
+            timestamp_date = int(datetime(year=date.year, month=date.month, day=date.day).timestamp())
+
+        logger.info(f"Getting diary for date {timestamp_date} with span {span}")
 
         r = self._get(f"https://dnevnik.ru/api/userfeed/persons/"
                       f"{self.person_id}/schools/"
@@ -159,12 +157,12 @@ class Diary(DiaryBase):
         elif isinstance(arg, datetime):
             return self._get_diary(date, arg.day - date.day)
         else:
-            raise TypeError(
-                f"Second argument must be datetime or int, not {type(arg)}")
+            raise TypeError(f"Second argument must be datetime or int, not {type(arg)}")
 
     def get_period_marks(self, period: int):
         # this method pasrses https://schools.dnevnik.ru/marks.aspx?
         # and takes info about marks
+        logger.info("Getting period marks")
 
         # these 2 headers are essential
         self.session.headers["Host"] = "schools.dnevnik.ru"
@@ -180,24 +178,26 @@ class Diary(DiaryBase):
         result = {"subject": {}}
 
         soup = BeautifulSoup(r.text, "lxml")
-        # finds the table and strips out header
-        soup = soup.find("table", {"id": "journal"})
-        for t in soup.findAll("tr")[2:]:
-            subject_name = t.find("strong", {"class": "u"}).text
-            marks_list = t.findAll("span", {"class": "mark"})
+        try:
+            # finds the table and strips out header
+            soup = soup.find("table", {"id": "journal"})
+            for t in soup.findAll("tr")[2:]:
+                subject_name = t.find("strong", {"class": "u"}).text
+                marks_list = t.findAll("span", {"class": "mark"})
 
-            result["subject"][subject_name] = {}
-            result["subject"][subject_name]["marks"] = []
-            # the last 2 marks is average mark and final mark
-            for mark in marks_list[:-2]:
-                result["subject"][subject_name]["marks"].append(
-                    {mark.text: mark["title"]})
+                result["subject"][subject_name] = {}
+                result["subject"][subject_name]["marks"] = []
+                # the last 2 marks is average mark and final mark
+                for mark in marks_list[:-2]:
+                    result["subject"][subject_name]["marks"].append({mark.text: mark["title"]})
 
-            try:
-                result["subject"][subject_name]["mark_average"] = marks_list[-2].text
-            except BaseException:
-                result["subject"][subject_name]["mark_average"] = None
+                try:
+                    result["subject"][subject_name]["mark_average"] = marks_list[-2].text
+                except BaseException:
+                    result["subject"][subject_name]["mark_average"] = None
 
-            result["subject"][subject_name]["mark_final"] = None if not marks_list[-1].text else marks_list[-1].text
+                result["subject"][subject_name]["mark_final"] = None if not marks_list[-1].text else marks_list[-1].text
 
-        return result
+            return result
+        except Exception as e:
+            logger.error(f"During user info parsing this exception accured:\n{e}")
