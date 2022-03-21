@@ -134,18 +134,15 @@ class Diary(DiaryBase):
         # parse data about user
         self.school_id, self.group_id, self.person_id = self.parse_initial_data()
 
-    def _get_diary(self, date: datetime, span: int, utc_aware: bool = False):
+    def _get_diary(self, date: datetime, span: int):
         # calculate time if user passes in negative span
         # by default dnevnikru supports only positive and zero span
         if span < 0:
             span = abs(span)
             date = date - timedelta(days=span)
 
-        # convert date to timestamp
-        if not utc_aware:
-            timestamp_date = int(datetime(year=date.year, month=date.month, day=date.day).replace(tzinfo=pytz.utc).timestamp())
-        else:
-            timestamp_date = int(datetime(year=date.year, month=date.month, day=date.day).timestamp())
+        # convert date to UNIX timestamp
+        timestamp_date = int(datetime(year=date.year, month=date.month, day=date.day).replace(tzinfo=pytz.utc).timestamp())
 
         logger.info(f"Getting diary for date {date} ({timestamp_date}) with span {span}")
 
@@ -158,7 +155,7 @@ class Diary(DiaryBase):
                       f"takeDays={span}")
         return json_loads(r.text)
 
-    def get_diary(self, date: datetime, *args, utc_aware: bool = False):
+    def get_diary(self, date: datetime, *args):
         """
         Get a diary for certain date(s)
 
