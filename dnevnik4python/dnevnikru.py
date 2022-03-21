@@ -6,6 +6,7 @@ from json import loads as json_loads
 from datetime import datetime, timedelta
 import pytz
 import logging
+import pprint
 
 from .exceptions import *
 
@@ -13,13 +14,14 @@ logger = logging.getLogger(__name__)
 
 
 class DiaryBase:
-    """docstring for Diary."""
+    """Base Dairy class"""
 
-    login_url = "https://login.dnevnik.ru/login"
-    userfeed_url = "https://dnevnik.ru/userfeed"
+    base_url     =  "https://dnevnik.ru/"
+    login_url    =  "https://login.dnevnik.ru/login/"
+    userfeed_url = f"{base_url}userfeed/"
+    api_url      = f"{base_url}api/"
 
     def __init__(self):
-
         self._initial_info = None
 
         self.session = Session()
@@ -27,56 +29,65 @@ class DiaryBase:
         self.session.headers = {"User-Agent": UserAgent().random,
                                 "Referer": self.login_url}
 
+    def _check_response(func):
+        def inner(*args, **kwargs):
+            # args[0] is self
+            # args[1] is second argument, url in our case
+            logger.debug(f"Sending {func.__name__.upper()[1:]} request to {args[1]}")
+            logger.debug(f"Session headers (also included in the request): {args[0].session.headers}")
+
+            r = func(*args, **kwargs)
+
+            if r.status_code != 200:
+                logger.error(f"Got {r.status_code} from {args[1]}")
+                if not args[0].servers_are_ok():
+                    raise ServersAreDownException("Dnevnik.ru servers are down, please retry later")
+                else:
+                    raise NotOkCodeReturn(f"Get request to {args[1]} resulted in {r.status_code} status code")
+
+            logger.debug(f"Request to {args[1]} sucsessful")
+            return r
+        return inner
+
     # simple wrappers for "get" and "post" methods from requests library
-    def _get(self, url, **kwargs):
-        logger.debug(f"Sending GET request to {url}")
-        r = self.session.get(url, **kwargs)
+    @_check_response
+    def _get(self, *args, **kwargs): return self.session.get(*args, **kwargs)
 
-        if r.status_code != 200:
-            logger.error(f"Got {r.status_code} from {url}")
-            if not self.servers_are_ok():
-                raise ServersAreDownException("Dnevnik.ru servers are down, please retry later")
-            else:
-                raise NotOkCodeReturn(f"Get request to {url} resulted in {r.status_code} status code")
-        logger.debug(f"Request to {url} sucsessful")
-        return r
-
-    def _post(self, url, data={}, **kwargs):
-        logger.debug(f"Sending POST request to {url}")
-        r = self.session.post(url, data, **kwargs)
-
-        if r.status_code != 200:
-            logger.error(f"Got {r.status_code} from {url}")
-            if not self.servers_are_ok():
-                raise ServersAreDownException("Dnevnik.ru servers are down, please retry later")
-            else:
-                raise NotOkCodeReturn(f"Post request to {url} resulted in {r.status_code} status code")
-        logger.debug(f"Request to {url} sucsessful")
-        return r
+    @_check_response
+    def _post(self, *args, **kwargs): return self.session.post(*args, **kwargs)
 
     def servers_are_ok(self):
-        logger.info("Checking https://dnevnik.ru/ status")
-        r = self.session.get("https://dnevnik.ru/")
+        logger.info(f"Checking {self.base_url} status")
+        r = self.session.get(f"{self.base_url}")
         if r.status_code != 200:
-            logger.warn(f"Got {r.status_code} status code from https://dnevnik.ru/")
+            logger.warn(f"Unable to reach dnevnik.ru servers [{r.status_code} response code]")
             return False
-        logger.info(f"Got {r.status_code} status code from https://dnevnik.ru/")
+        logger.info(f"dnevnik.ru server are up")
         return True
 
     def auth(self, login, password):
         logger.info(f"Authenticating on {self.login_url}")
-        r = self._post(
-            self.login_url,
-            data={
-                "login": login,
-                "password": password})
+        r = self._post(self.login_url, data={
+                                       "login": login,
+                                       "password": password})
         # check if we accessed userfeed page
-        if r.url != self.userfeed_url:
+        # we also need to add last '/' since self.userfeed_url dont have it
+        if r.url + '/' != self.userfeed_url:
             logger.error("Unable to authenicate. Most likely due wrong credentials")
             raise IncorrectLoginDataException("You entered wrong login data")
         logger.info("Authenication sucsessful")
 
-    def parse_user_data(self):
+    def parse_initial_data(self):
+        """
+        Parses essential data about from userfeed
+
+        This includes user data: schoolId, groupId, personId 
+        And also other info about user, marks, periods, class,
+        teachers and much more
+        
+        I recomend you explore it yourself since this data comes
+        directly from dnevnik.ru and can change over time 
+        """
         logger.debug("Parsing initial info")
         r = self._get(self.userfeed_url)
 
@@ -98,7 +109,7 @@ class DiaryBase:
                 self._initial_info = json_loads(raw_initial_info)
                 info = self._initial_info["userSchedule"]["currentChild"]
 
-                logger.debug("User info: " + str(info))
+                logger.debug("User info according _initial_info: " + str(info))
                 logger.debug("Current date according to dnevnik: " + self._initial_info["userSchedule"]["currentDate"])
 
                 return info["schoolId"], info["groupId"], info["personId"]
@@ -114,14 +125,14 @@ class DiaryBase:
 
 
 class Diary(DiaryBase):
-    """docstring for Diary."""
+    """Main Diary class"""
 
     def __init__(self, login, password):
         super().__init__()
 
         self.auth(login, password)
         # parse data about user
-        self.school_id, self.group_id, self.person_id = self.parse_user_data()
+        self.school_id, self.group_id, self.person_id = self.parse_initial_data()
 
     def _get_diary(self, date: datetime, span: int, utc_aware: bool = False):
         # calculate time if user passes in negative span
@@ -136,9 +147,10 @@ class Diary(DiaryBase):
         else:
             timestamp_date = int(datetime(year=date.year, month=date.month, day=date.day).timestamp())
 
-        logger.info(f"Getting diary for date {timestamp_date} with span {span}")
+        logger.info(f"Getting diary for date {date} ({timestamp_date}) with span {span}")
 
-        r = self._get(f"https://dnevnik.ru/api/userfeed/persons/"
+        self.session.headers["Host"] = "dnevnik.ru"
+        r = self._get(f"{self.api_url}userfeed/persons/"
                       f"{self.person_id}/schools/"
                       f"{self.school_id}/groups/"
                       f"{self.group_id}/schedule?"
@@ -147,6 +159,15 @@ class Diary(DiaryBase):
         return json_loads(r.text)
 
     def get_diary(self, date: datetime, *args, utc_aware: bool = False):
+        """
+        Get a diary for certain date(s)
+
+        Dairy data includes: lesson, their schedule, marks, homeworks,
+        basic info about subject and much, much more.
+
+        I recomend you explore it yourself since this data comes
+        directly from dnevnik.ru and can change over time 
+        """
         if not args:
             return self._get_diary(date, 1)
 
@@ -160,9 +181,15 @@ class Diary(DiaryBase):
             raise TypeError(f"Second argument must be datetime or int, not {type(arg)}")
 
     def get_period_marks(self, period: int):
+        """
+        Parse marks in a certain period defined
+        by dnevnik.ru (most likely - a quater of a year)
+        """
         # this method pasrses https://schools.dnevnik.ru/marks.aspx?
         # and takes info about marks
         logger.info("Getting period marks")
+        logger.debug("Period info according to _initial_info:\n"
+        f"{pprint.pformat(self._initial_info['userContext']['currentContextPerson']['reportingPeriodGroup'])}")
 
         # these 2 headers are essential
         self.session.headers["Host"] = "schools.dnevnik.ru"
