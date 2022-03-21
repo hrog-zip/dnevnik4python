@@ -73,8 +73,16 @@ class DiaryBase:
         # check if we accessed userfeed page
         # we also need to add last '/' since self.userfeed_url dont have it
         if r.url + '/' != self.userfeed_url:
-            logger.error("Unable to authenicate. Most likely due wrong credentials")
-            raise IncorrectLoginDataException("You entered wrong login data")
+            logger.error("Unable to authenticate")
+            # check for popup that tells you about wrong credentials
+            soup = BeautifulSoup(r.text, "lxml")
+            msg = soup.find("div", {"class", "login__body__hint"})
+            if msg != None:
+                raise IncorrectLoginDataException(f"Unable to authenticate. Reason: {msg.text.strip()}")
+
+            raise UnknownLoginError("Unable to authenticate. "
+            "Exact reason is unknow, but most likely its due to wrong credentials")
+
         logger.info("Authenication sucsessful")
 
     def parse_initial_data(self):

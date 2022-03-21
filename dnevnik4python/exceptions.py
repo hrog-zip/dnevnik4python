@@ -1,3 +1,6 @@
+class UnknownLoginError(Exception):
+    pass
+
 class IncorrectLoginDataException(Exception):
     pass
 
