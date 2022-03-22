@@ -11,16 +11,16 @@ setup(
     description = "Wrapper for python that simplifies work with dnevnik.ru",
     long_description = long_description,
     long_description_content_type = "text/markdown",
-    install_requires = ["beautifulsoup4==4.9.3",
+    install_requires = ["beautifulsoup4==4.10.0",
                         "bs4==0.0.1",
-                        "certifi==2021.5.30",
-                        "chardet==4.0.0",
+                        "certifi==2021.10.8",
+                        "charset-normalizer==2.0.12",
                         "fake-useragent==0.1.11",
-                        "idna==2.10",
-                        "lxml==4.6.3",
-                        "pytz==2021.1",
-                        "requests==2.25.1",
-                        "soupsieve==2.2.1",
-                        "urllib3==1.26.6"],
+                        "idna==3.3",
+                        "lxml==4.8.0",
+                        "pytz==2022.1",
+                        "requests==2.27.1",
+                        "soupsieve==2.3.1",]
+                        
     keywords = ["python", "dnevnik", "dnevnikru", "api", "dnevnikru api", "dnevnik api", "wrapper"]
 )
