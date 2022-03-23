@@ -212,6 +212,7 @@ class Diary(DiaryBase):
         soup = BeautifulSoup(r.text, "lxml")
         try:
             # finds the table and strips out header
+            # TODO: rewrite this
             soup = soup.find("table", {"id": "journal"})
             for t in soup.findAll("tr")[2:]:
                 subject_name = t.find("strong", {"class": "u"}).text
@@ -225,7 +226,7 @@ class Diary(DiaryBase):
 
                 try:
                     result["subject"][subject_name]["mark_average"] = marks_list[-2].text
-                except BaseException:
+                except Exception:
                     result["subject"][subject_name]["mark_average"] = None
 
                 result["subject"][subject_name]["mark_final"] = None if not marks_list[-1].text else marks_list[-1].text
@@ -233,3 +234,11 @@ class Diary(DiaryBase):
             return result
         except Exception as e:
             logger.error(f"During user info parsing this exception accured:\n{e}")
+
+    def get_posts(self, limit: int):
+        logger.info("Getting posts")
+
+        self.session.headers["Host"] = "dnevnik.ru"
+        self.session.headers["Referer"] = "https://dnevnik.ru/userfeed"
+
+        return json_loads(self._get(f"{self.api_url}userfeed/posts/?limit={limit}").text)
